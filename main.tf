@@ -1,29 +1,12 @@
-locals {
-  cluster_type = "simple-regional-private"
-  cluster_name_suffix = "00"
-  compute_engine_service_account = "499880238003-compute@developer.gserviceaccount.com"
-  ip_range_pods = "sandbox-2-dev-vpc-private-subnet-0-pods"
-  ip_range_services = "sandbox-2-dev-vpc-private-subnet-0-svc"
-  network = "sandbox-2-dev-vpc"
-  project_id = "sandbox-roberto"
-  region = "asia-southeast2"
-  subnetwork = "sandbox-2-dev-vpc-private-subnet-0"
-
-}
-
 provider "google" {
-  region  = local.region
-  project = local.project_id
-}
-
-data "google_service_account" "compute-default-service-account" {
-  account_id = "499880238003-compute@developer.gserviceaccount.com"
+  region  = var.region
+  project = var.project_id
 }
 
 
 provider "google-beta" {
-  region  = local.region
-  project = local.project_id
+  region  = var.region
+  project = var.project_id
 }
 
 data "google_client_config" "default" {}
@@ -34,24 +17,30 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(module.gke.ca_certificate)
 }
 
-data "google_compute_subnetwork" "subnetwork" {
-  name    = local.subnetwork
-  project = local.project_id
-  region  = local.region
+module "service_accounts" {
+  source        = "terraform-google-modules/service-accounts/google"
+  version       = "~> 3.0"
+  project_id    = var.project_id
+  names         = ["gke-mgmt-sa"]
+  project_roles = [
+    "${var.project_id}=>roles/compute.admin",
+    "${var.project_id}=>roles/container.admin",
+    "${var.project_id}=>roles/iam.serviceAccountUser",
+  ]
 }
 
 module "gke" {
   source                    = "terraform-google-modules/kubernetes-engine/google//modules/private-cluster"
-  project_id                = local.project_id
-  name                      = "${local.cluster_type}-cluster${local.cluster_name_suffix}"
+  project_id                = var.project_id
+  name                      = var.cluster_name
   regional                  = true
-  region                    = local.region
-  network                   = local.network
-  subnetwork                = local.subnetwork
-  ip_range_pods             = local.ip_range_pods
-  ip_range_services         = local.ip_range_services
+  region                    = var.region
+  network                   = module.vpc.network_name
+  subnetwork                = "gke-subnet-0"
+  ip_range_pods             = "gke-subnet-0-pods"
+  ip_range_services         = "gke-subnet-0-svc"
   create_service_account    = false
-  service_account           = data.google_service_account.compute-default-service-account.email
+  service_account           = module.service_accounts.email
   enable_private_endpoint   = true
   enable_private_nodes      = true  
   master_ipv4_cidr_block    = "172.16.0.0/28"
@@ -69,7 +58,7 @@ module "gke" {
       image_type        = "COS"
       auto_repair       = true
       auto_upgrade      = true
-      service_account   = local.compute_engine_service_account
+      service_account   = module.service_accounts.email
       preemptible       = true
       max_pods_per_node = 12
     },
@@ -77,7 +66,7 @@ module "gke" {
 
   master_authorized_networks = [
     {
-      cidr_block   = data.google_compute_subnetwork.subnetwork.ip_cidr_range
+      cidr_block   = var.gke_subnet_ip_cidr
       display_name = "VPC"
     }
   ]
