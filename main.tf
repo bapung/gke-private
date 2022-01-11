@@ -17,9 +17,8 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(module.gke.ca_certificate)
 }
 
-module "service_accounts" {
+module "gke_service_accounts" {
   source        = "terraform-google-modules/service-accounts/google"
-  version       = "~> 3.0"
   project_id    = var.project_id
   names         = ["gke-mgmt-sa"]
   project_roles = [
@@ -31,6 +30,7 @@ module "service_accounts" {
 
 module "gke" {
   source                    = "terraform-google-modules/kubernetes-engine/google//modules/private-cluster"
+  version                   = "~> 17.0"
   project_id                = var.project_id
   name                      = var.cluster_name
   regional                  = true
@@ -40,7 +40,7 @@ module "gke" {
   ip_range_pods             = "gke-subnet-0-pods"
   ip_range_services         = "gke-subnet-0-svc"
   create_service_account    = false
-  service_account           = module.service_accounts.email
+  service_account           = module.gke_service_accounts.email
   enable_private_endpoint   = true
   enable_private_nodes      = true  
   master_ipv4_cidr_block    = "172.16.0.0/28"
@@ -58,7 +58,7 @@ module "gke" {
       image_type        = "COS"
       auto_repair       = true
       auto_upgrade      = true
-      service_account   = module.service_accounts.email
+      service_account   = module.gke_service_accounts.email
       preemptible       = true
       max_pods_per_node = 12
     },
@@ -67,7 +67,15 @@ module "gke" {
   master_authorized_networks = [
     {
       cidr_block   = var.gke_subnet_ip_cidr
-      display_name = "VPC"
+      display_name = "gke-subnet"
+    },
+    {
+      cidr_block   = var.mgmt_subnet_ip_cidr
+      display_name = "management-subnet"
+    },
+    {
+      cidr_block   = var.lb_subnet_ip_cidr
+      display_name = "load-balancer-subnet"
     }
   ]
 }

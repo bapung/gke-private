@@ -26,3 +26,8 @@ variable "mgmt_subnet_ip_cidr" {
     type = string 
     default = "10.15.110.0/24"
 }
+
+variable "lb_subnet_ip_cidr" {
+    type = string 
+    default = "10.15.120.0/24"
+}
