@@ -29,23 +29,20 @@ module "gke_service_accounts" {
 }
 
 module "gke" {
-  source                    = "terraform-google-modules/kubernetes-engine/google//modules/private-cluster"
-  version                   = "~> 17.0"
-  project_id                = var.project_id
-  name                      = var.cluster_name
-  regional                  = true
-  region                    = var.region
-  network                   = module.vpc.network_name
-  subnetwork                = "gke-subnet-0"
-  ip_range_pods             = "gke-subnet-0-pods"
-  ip_range_services         = "gke-subnet-0-svc"
-  create_service_account    = false
-  service_account           = module.gke_service_accounts.email
-  enable_private_endpoint   = true
-  enable_private_nodes      = true  
-  master_ipv4_cidr_block    = "172.16.0.0/28"
-  default_max_pods_per_node = 20
-  remove_default_node_pool  = true
+  source                      = "terraform-google-modules/kubernetes-engine/google"
+  version                     = "~> 17.0"
+  project_id                  = var.project_id
+  name                        = var.cluster_name
+  regional                    = true
+  region                      = var.region
+  network                     = module.vpc.network_name
+  subnetwork                  = "gke-subnet-0"
+  ip_range_pods               = "gke-subnet-0-pods"
+  ip_range_services           = "gke-subnet-0-svc"
+  add_cluster_firewall_rules  = true
+  create_service_account      = false
+  service_account             = module.gke_service_accounts.email
+  remove_default_node_pool    = true
 
   node_pools = [
     {
@@ -76,6 +73,10 @@ module "gke" {
     {
       cidr_block   = var.lb_subnet_ip_cidr
       display_name = "load-balancer-subnet"
+    },
+    {
+      cidr_block   = "0.0.0.0/0"
+      display_name = "vpn-network"
     }
   ]
 }
